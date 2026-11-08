@@ -131,12 +131,18 @@
     .action-right { display: flex; gap: 8px; }
     .danger-btn { border: 0; background: transparent; color: #d45c70; font-size: 12px; font-weight: 750; padding: 9px 4px; }
     .hidden { display: none !important; }
+
+    #accountBtn { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 760px) {
+      .top-actions #accountBtn { display: inline-flex; max-width: 110px; padding: 8px 10px; font-size: 11px; }
+    }
     @media (max-width: 1050px) {
       .layout { grid-template-columns: 210px minmax(0,1fr); gap: 17px; padding: 24px 20px 40px; }
       .topbar { padding: 0 20px; }
       .side-card { padding: 17px; }
     }
     @media (max-width: 760px) {
+      .top-actions #accountBtn { display: inline-flex; max-width: 110px; padding: 8px 10px; font-size: 11px; }
       .topbar { height: 64px; padding: 0 15px; }
       .brand { font-size: 17px; }
       .top-actions .btn:not(.primary) { display: none; }
@@ -175,7 +181,7 @@
       <div class="top-actions">
         <button class="btn" id="exportBtn" title="시간표를 JSON 파일로 저장"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>내보내기</span></button>
         <button class="btn primary" id="shareBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>시간표 공유</button>
-        <div class="avatar">S</div>
+        <button class="btn" id="accountBtn">로그인</button>
       </div>
     </header>
 
@@ -245,12 +251,19 @@
       <div class="modal-head"><div><h2 id="modalTitle">새 일정 만들기</h2><p>집중할 시간을 미리 확보해 보세요.</p></div><button class="close-btn" id="closeModal" aria-label="닫기">✕</button></div>
       <form id="eventForm">
         <input type="hidden" id="eventId" />
+        <input type="hidden" id="eventSeriesId" />
+        <input type="hidden" id="eventOccurrenceDate" />
+        <input type="hidden" id="eventSeriesStartDate" />
+        <input type="hidden" id="eventIsOverride" />
         <div class="form-grid">
           <div class="field full"><label for="eventTitle">일정 이름</label><input id="eventTitle" maxlength="60" placeholder="예: 미적분 개념 정리" required /></div>
           <div class="field"><label for="eventSubject">과목</label><select id="eventSubject"><option value="수학">수학</option><option value="영어">영어</option><option value="국어">국어</option><option value="과학">과학</option><option value="기타">기타</option></select></div>
           <div class="field"><label for="eventDate">날짜</label><input id="eventDate" type="date" required /></div>
           <div class="field"><label for="eventStart">시작</label><input id="eventStart" type="time" value="09:00" required /></div>
           <div class="field"><label for="eventEnd">종료</label><input id="eventEnd" type="time" value="10:00" required /></div>
+          <div class="field full hidden" id="editScopeField"><label for="eventEditScope">수정 범위</label><select id="eventEditScope"><option value="this">이번 일정만</option><option value="series">반복 일정 전체</option></select></div>
+          <div class="field full" id="repeatField"><label for="eventRepeat">반복</label><select id="eventRepeat"><option value="none">반복 안 함</option><option value="daily">매일</option><option value="weekdays">평일 (월–금)</option><option value="weekly">매주 같은 요일</option><option value="monthly">매월 같은 날짜</option></select></div>
+          <div class="field full" id="repeatUntilField"><label for="eventRepeatUntil">반복 종료일 <span style="font-weight:500;color:#a0a4b5">(비워 두면 종료일 없음)</span></label><input id="eventRepeatUntil" type="date" /></div>
           <div class="field full"><label>색상</label><div class="color-options" id="colorOptions"></div></div>
           <div class="field full"><label for="eventNote">메모 <span style="font-weight:500;color:#a0a4b5">(선택)</span></label><textarea id="eventNote" maxlength="180" placeholder="공부할 범위나 간단한 메모를 적어보세요."></textarea></div>
         </div>
@@ -260,12 +273,34 @@
   </div>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
+  <div class="modal-backdrop" id="accountBackdrop" role="dialog" aria-modal="true" aria-labelledby="accountTitle">
+    <div class="modal">
+      <div class="modal-head"><div><h2 id="accountTitle">STUDYGRADE 계정</h2><p id="accountSubtitle">계정에 로그인하면 여러 기기에서 시간표를 동기화할 수 있어요.</p></div><button class="close-btn" id="closeAccount" aria-label="닫기">✕</button></div>
+      <div id="accountSignedIn" class="hidden">
+        <p id="accountEmailLabel" style="font-size:13px;font-weight:750;margin:0 0 8px"></p>
+        <p class="muted" style="font-size:11px;line-height:1.6;margin:0">이 계정의 시간표는 Neon 서버에 저장됩니다. 같은 계정으로 로그인하면 다른 기기에서도 불러올 수 있어요.</p>
+        <div class="modal-actions"><span></span><div class="action-right"><button type="button" class="btn" id="accountSignOut">로그아웃</button><button type="button" class="btn primary" id="accountDone">닫기</button></div></div>
+      </div>
+      <form id="accountForm">
+        <div class="form-grid">
+          <div class="field full" id="accountNameField"><label for="accountName">이름</label><input id="accountName" maxlength="60" autocomplete="name" placeholder="표시할 이름" /></div>
+          <div class="field full"><label for="accountEmail">이메일</label><input id="accountEmail" type="email" maxlength="254" required autocomplete="email" placeholder="name@example.com" /></div>
+          <div class="field full" id="accountPasswordField"><label for="accountPassword">비밀번호</label><input id="accountPassword" type="password" minlength="8" maxlength="128" required autocomplete="new-password" placeholder="8자 이상" /></div>
+          <div class="field full hidden" id="accountOtpField"><label for="accountOtp">이메일 인증 코드</label><input id="accountOtp" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="메일로 받은 인증 코드" /></div>
+          <div class="field full"><p id="accountStatus" class="muted" style="font-size:11px;line-height:1.6;margin:0" aria-live="polite">이메일 인증을 통해 계정을 보호합니다.</p></div>
+        </div>
+        <div class="modal-actions"><button type="button" class="danger-btn" id="accountModeToggle">이미 계정이 있어요</button><div class="action-right"><button type="button" class="btn" id="accountCancel">취소</button><button type="submit" class="btn primary" id="accountSubmit">회원가입</button></div></div>
+      </form>
+    </div>
+  </div>
+
   <script>
     (() => {
       'use strict';
       const STORAGE_KEY = 'studyflow-planner-v1';
       const API_BASE_URL = 'https://br-bold-shadow-azl6l4m4-plannerapi.compute.c-3.ap-southeast-1.aws.neon.tech';
-      const OWNER_ID_KEY = 'studygrade-planner-owner-v1';
+      const AUTH_URL = 'https://ep-cool-night-azuekrrl.neonauth.c-3.ap-southeast-1.aws.neon.tech/studygrade/auth';
+      const ACCOUNT_USER_KEY = 'studygrade-account-user-v1';
       const START_HOUR = 6;
       const END_HOUR = 24;
       const HOUR_HEIGHT = 60;
@@ -287,78 +322,136 @@
       }
       let cloudReady = false;
       let cloudWriteTimer = null;
-      let cloudOwnerId = null;
       let cloudPendingSave = false;
+      let cloudLastUpdatedAt = null;
+      let authClient = null;
+      let authSession = null;
+      let currentUser = null;
+      let accountMode = 'signup';
+      let accountAwaitingOtp = false;
+      let accountBusy = false;
 
-      function getCloudOwnerId() {
-        let id = localStorage.getItem(OWNER_ID_KEY);
-        if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
-          id = crypto.randomUUID();
-          localStorage.setItem(OWNER_ID_KEY, id);
+      function mergePlannerWeeks(remoteWeeks, localWeeks) {
+        const merged = {};
+        for (const source of [remoteWeeks || {}, localWeeks || {}]) {
+          for (const [week, events] of Object.entries(source)) {
+            if (!Array.isArray(events)) continue;
+            const target = new Map((merged[week] || []).map(event => [event.id, event]));
+            for (const event of events) if (!target.has(event.id)) target.set(event.id, event);
+            merged[week] = [...target.values()];
+          }
         }
-        return id;
+        return merged;
+      }
+      async function getAuthSession() {
+        if (!authClient) throw new Error('인증 모듈을 불러오는 중입니다.');
+        const result = await authClient.getSession();
+        if (result.error) throw new Error(result.error.message || '세션을 확인하지 못했습니다.');
+        return result.data || {};
       }
       async function cloudRequest(method, body) {
-        const response = await fetch(`${API_BASE_URL}/api/planner`, {
+        const sessionData = await getAuthSession();
+        const token = sessionData.session && sessionData.session.token;
+        if (!token) throw new Error('다시 로그인해 주세요.');
+        const response = await fetch(API_BASE_URL + '/api/planner', {
           method,
-          headers: { 'x-planner-id': cloudOwnerId, ...(body ? { 'content-type': 'application/json' } : {}) },
+          headers: {
+            authorization: 'Bearer ' + token,
+            ...(body ? { 'content-type': 'application/json' } : {}),
+          },
           body: body ? JSON.stringify(body) : undefined,
           cache: 'no-store',
         });
         const data = await response.json().catch(() => ({}));
-        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        if (!response.ok) throw new Error(data.error || ('HTTP ' + response.status));
         return data;
       }
       async function pushCloudStore() {
-        if (!cloudReady || sharedMode) return;
+        if (!cloudReady || !currentUser || sharedMode) return;
         try {
-          await cloudRequest('PUT', { weeks: store });
-          $('saveStatus').textContent = 'Neon 서버에 동기화됨';
+          const result = await cloudRequest('PUT', { weeks: store });
+          cloudLastUpdatedAt = result.updatedAt || cloudLastUpdatedAt;
+          $('saveStatus').textContent = '계정에 동기화됨';
         } catch (error) {
-          console.error('Neon sync failed:', error);
-          $('saveStatus').textContent = '서버 동기화 실패 · 브라우저에는 저장됨';
+          console.error('Neon account sync failed:', error);
+          $('saveStatus').textContent = '계정 동기화 실패 · 브라우저에는 저장됨';
         }
       }
       function scheduleCloudSave() {
-        if (sharedMode) return;
+        if (sharedMode || !currentUser) return;
         if (!cloudReady) {
-          if (cloudOwnerId) cloudPendingSave = true;
+          cloudPendingSave = true;
           return;
         }
         clearTimeout(cloudWriteTimer);
         cloudWriteTimer = setTimeout(pushCloudStore, 650);
       }
-      async function initializeCloudSync() {
+      async function syncAccountData(user) {
+        if (!user || sharedMode) return;
+        cloudReady = false;
+        $('saveStatus').textContent = '계정 시간표 불러오는 중…';
         try {
-          cloudOwnerId = getCloudOwnerId();
-          $('saveStatus').textContent = 'Neon 서버 연결 확인 중…';
+          currentUser = user;
+          const previousUserId = localStorage.getItem(ACCOUNT_USER_KEY);
+          const switchingAccount = !!previousUserId && previousUserId !== user.id;
+          const localWeeks = store;
           const remote = await cloudRequest('GET');
-          const hasLocalStore = localStorage.getItem(STORAGE_KEY) !== null;
-          if (!hasLocalStore) {
+          if (switchingAccount) {
             store = remote.exists && remote.weeks && typeof remote.weeks === 'object' ? remote.weeks : {};
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
-            $('saveStatus').textContent = remote.exists ? 'Neon 서버에서 시간표를 불러왔습니다.' : 'Neon 서버에 연결됨';
-            render();
-            if (!remote.exists) await cloudRequest('PUT', { weeks: store });
+          } else if (remote.exists) {
+            store = mergePlannerWeeks(remote.weeks, localWeeks);
           } else {
-            // Existing browser data is the migration source of truth for this anonymous profile.
-            await cloudRequest('PUT', { weeks: store });
-            $('saveStatus').textContent = '기존 시간표를 Neon 서버에 동기화했습니다.';
+            store = localWeeks;
           }
+          localStorage.setItem(ACCOUNT_USER_KEY, user.id);
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
           cloudReady = true;
-          if (cloudPendingSave) {
-            cloudPendingSave = false;
-            await pushCloudStore();
-          }
-          setTimeout(() => {
-            if ($('saveStatus').textContent.includes('동기화했습니다.') || $('saveStatus').textContent === 'Neon 서버에 연결됨') {
-              $('saveStatus').textContent = 'Neon 서버에 동기화됨';
-            }
-          }, 2500);
+          cloudLastUpdatedAt = remote.updatedAt || null;
+          cloudPendingSave = false;
+          await pushCloudStore();
+          renderAccountButton();
+          render();
         } catch (error) {
-          console.error('Neon initial sync failed:', error);
+          console.error('Account sync failed:', error);
           cloudReady = false;
-          $('saveStatus').textContent = 'Neon 연결 실패 · 브라우저에 자동 저장 중';
+          $('saveStatus').textContent = '계정 연결 실패 · 브라우저 저장 유지';
+          showToast(error.message || '계정 동기화를 완료하지 못했습니다.');
+        }
+      }
+      async function refreshAccountData() {
+        if (!currentUser || !cloudReady || sharedMode || document.visibilityState === 'hidden') return;
+        try {
+          const remote = await cloudRequest('GET');
+          if (remote.exists && remote.updatedAt && remote.updatedAt !== cloudLastUpdatedAt) {
+            store = remote.weeks || {};
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+            cloudLastUpdatedAt = remote.updatedAt;
+            render();
+            $('saveStatus').textContent = '다른 기기의 변경 사항을 불러왔습니다.';
+          }
+        } catch (error) {
+          console.warn('Account refresh skipped:', error && error.message);
+        }
+      }
+      function renderAccountButton() {
+        $('accountBtn').textContent = currentUser ? (currentUser.name || currentUser.email) : '로그인';
+        $('accountBtn').title = currentUser ? currentUser.email : '계정 로그인 및 회원가입';
+      }
+      async function initializeAuth() {
+        try {
+          const module = await import('https://esm.sh/@neon/neon-js@latest/auth?bundle');
+          authClient = module.createAuthClient(AUTH_URL);
+          const result = await getAuthSession();
+          authSession = result.session || null;
+          currentUser = result.user || null;
+          renderAccountButton();
+          if (currentUser && !sharedMode) await syncAccountData(currentUser);
+          else if (!currentUser) $('saveStatus').textContent = '브라우저에 저장됨 · 로그인하면 기기 간 동기화';
+        } catch (error) {
+          console.error('Neon Auth initialization failed:', error);
+          $('accountBtn').textContent = '로그인 사용 불가';
+          $('accountBtn').title = '인증 모듈 연결 실패';
+          $('saveStatus').textContent = '계정 기능 연결 실패 · 브라우저 저장 유지';
         }
       }
       function saveStore() {
@@ -375,13 +468,90 @@
       function getMonday(date) { const d = new Date(date.getFullYear(),date.getMonth(),date.getDate(),12); const day = (d.getDay()+6)%7; d.setDate(d.getDate()-day); return d; }
       function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate()+n); return d; }
       function weekKey() { return dateKey(weekStart); }
+      function weekdayIndex(key) { return (parseDate(key).getDay() + 6) % 7; }
+      function allStoredEvents() { return Object.values(store).flatMap(events => Array.isArray(events) ? events : []); }
+      function recurrenceMatches(event, key) {
+        const rule = event.recurrence;
+        if (!rule || key < event.date || (rule.until && key > rule.until)) return false;
+        if ((rule.exceptions || []).includes(key)) return false;
+        const first = parseDate(event.date);
+        const target = parseDate(key);
+        const diffDays = Math.round((target.getTime() - first.getTime()) / 86400000);
+        const interval = rule.interval || 1;
+        if (rule.frequency === 'daily') return diffDays % interval === 0;
+        if (rule.frequency === 'weekdays') return weekdayIndex(key) <= 4 && Math.floor(diffDays / 7) % interval === 0;
+        if (rule.frequency === 'weekly') {
+          const weekDiff = Math.floor(diffDays / 7);
+          const days = Array.isArray(rule.weekdays) && rule.weekdays.length ? rule.weekdays : [weekdayIndex(event.date)];
+          return weekDiff % interval === 0 && days.includes(weekdayIndex(key));
+        }
+        if (rule.frequency === 'monthly') {
+          const monthDiff = (target.getFullYear() - first.getFullYear()) * 12 + target.getMonth() - first.getMonth();
+          return monthDiff % interval === 0 && target.getDate() === first.getDate();
+        }
+        return false;
+      }
       function currentEvents() {
         if (sharedMode && sharedSnapshot) return sharedSnapshot.events.slice();
-        return (store[weekKey()] || []).slice();
+        const visibleKeys = new Set(Array.from({length:7},(_,i)=>dateKey(addDays(weekStart,i))));
+        const events = [];
+        for (const event of allStoredEvents()) {
+          if (event.recurrence) {
+            for (const key of visibleKeys) {
+              if (recurrenceMatches(event,key)) {
+                events.push({ ...event, id: event.id + '@' + key, seriesMasterId: event.id, occurrenceDate: key, isRecurring: true });
+              }
+            }
+          } else if (visibleKeys.has(event.date)) {
+            events.push(event.overrideOf
+              ? { ...event, seriesMasterId: event.overrideOf, occurrenceDate: event.date, isRecurring: true, isOverride: true }
+              : event);
+          }
+        }
+        return events;
       }
       function formatDate(date, options) { return new Intl.DateTimeFormat('ko-KR', options).format(date); }
       function formatTime(value) { return value || '00:00'; }
       function minutes(value) { const [h,m] = value.split(':').map(Number); return h*60+m; }
+
+      function findStoredEvent(id) {
+        for (const [key, events] of Object.entries(store)) {
+          if (!Array.isArray(events)) continue;
+          const index = events.findIndex(event => event.id === id);
+          if (index >= 0) return { key, index, event: events[index] };
+        }
+        return null;
+      }
+      function removeStoredEvent(id) {
+        const found = findStoredEvent(id);
+        if (!found) return null;
+        store[found.key].splice(found.index,1);
+        if (!store[found.key].length) delete store[found.key];
+        return found.event;
+      }
+      function putStoredEvent(event) {
+        removeStoredEvent(event.id);
+        const key = dateKey(getMonday(parseDate(event.date)));
+        if (!store[key]) store[key] = [];
+        store[key].push(event);
+      }
+      function makeRecurrence(frequency, date, until, previous) {
+        if (frequency === 'none') return null;
+        const rule = {
+          frequency,
+          interval: previous && previous.frequency === frequency ? (previous.interval || 1) : 1,
+          exceptions: previous && Array.isArray(previous.exceptions) ? previous.exceptions.slice() : [],
+        };
+        if (until) rule.until = until;
+        if (frequency === 'weekly') rule.weekdays = [weekdayIndex(date)];
+        return rule;
+      }
+      function syncRecurrenceFields() {
+        const oneOccurrence = $('eventSeriesId').value && $('eventEditScope').value === 'this';
+        $('repeatField').classList.toggle('hidden', !!oneOccurrence);
+        $('repeatUntilField').classList.toggle('hidden', !!oneOccurrence || $('eventRepeat').value === 'none');
+      }
+
       function duration(event) { return Math.max(0, minutes(event.end)-minutes(event.start)); }
       function showToast(message) {
         const el = $('toast'); el.textContent = message; el.classList.add('show');
@@ -393,17 +563,28 @@
       function openModal(date = dateKey(new Date()), start = '09:00', event = null) {
         if (sharedMode) return;
         $('eventForm').reset();
+        const seriesMaster = event?.seriesMasterId ? findStoredEvent(event.seriesMasterId)?.event : null;
+        const seriesRule = event?.recurrence || seriesMaster?.recurrence;
         $('eventId').value = event?.id || '';
+        $('eventSeriesId').value = event?.seriesMasterId || '';
+        $('eventOccurrenceDate').value = event?.occurrenceDate || event?.date || date;
+        $('eventSeriesStartDate').value = seriesMaster?.date || event?.seriesStartDate || event?.date || date;
+        $('eventIsOverride').value = event?.isOverride ? '1' : '0';
         $('eventTitle').value = event?.title || '';
         $('eventSubject').value = event?.subject || '수학';
         $('eventDate').value = event?.date || date;
         $('eventStart').value = event?.start || start;
         const defaultEnd = minutes(start) + 60;
-        $('eventEnd').value = event?.end || `${String(Math.floor(defaultEnd/60)%24).padStart(2,'0')}:${String(defaultEnd%60).padStart(2,'0')}`;
+        $('eventEnd').value = event?.end || (String(Math.floor(defaultEnd/60)%24).padStart(2,'0') + ':' + String(defaultEnd%60).padStart(2,'0'));
         $('eventNote').value = event?.note || '';
+        $('eventRepeat').value = seriesRule?.frequency || 'none';
+        $('eventRepeatUntil').value = seriesRule?.until || '';
+        $('eventEditScope').value = 'this';
+        $('editScopeField').classList.toggle('hidden', !event?.seriesMasterId);
         selectedColor = event?.color || COLORS[$('eventSubject').value] || COLORS['수학'];
         $('modalTitle').textContent = event ? '일정 수정하기' : '새 일정 만들기';
         $('deleteEvent').classList.toggle('hidden', !event);
+        syncRecurrenceFields();
         renderColorOptions();
         $('modalBackdrop').classList.add('open');
         setTimeout(() => $('eventTitle').focus(), 50);
@@ -482,19 +663,89 @@
         const date = $('eventDate').value;
         const start = $('eventStart').value;
         const end = $('eventEnd').value;
+        const until = $('eventRepeatUntil').value || null;
+        const repeat = $('eventRepeat').value;
         if (!date || !start || !end || minutes(start)<START_HOUR*60 || minutes(end)>END_HOUR*60 || minutes(end)<=minutes(start)) { showToast('시간표 범위(06:00–24:00) 안에서 종료 시간을 시작보다 늦게 설정해 주세요.'); return; }
+        if (until && until < date) { showToast('반복 종료일은 시작일보다 빠를 수 없습니다.'); return; }
         const eventDate = parseDate(date);
-        if (dateKey(getMonday(eventDate)) !== weekKey()) { showToast('현재 선택한 주의 날짜를 입력해 주세요.'); return; }
-        const eventData = { id:$('eventId').value || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())), title:$('eventTitle').value.trim(), subject:$('eventSubject').value, date, start, end, color:selectedColor, note:$('eventNote').value.trim() };
+        const seriesIdForValidation = $('eventSeriesId').value;
+        const editingWholeSeries = seriesIdForValidation && $('eventEditScope').value === 'series';
+        if (!editingWholeSeries && dateKey(getMonday(eventDate)) !== weekKey()) { showToast('현재 선택한 주의 날짜를 입력해 주세요.'); return; }
+        const seriesId = $('eventSeriesId').value;
+        const occurrenceDate = $('eventOccurrenceDate').value || date;
+        const scope = $('eventEditScope').value;
+        const eventData = {
+          id: $('eventId').value && !seriesId ? $('eventId').value : (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())),
+          title: $('eventTitle').value.trim(), subject: $('eventSubject').value,
+          date,
+          start, end, color: selectedColor, note: $('eventNote').value.trim()
+        };
         if (!eventData.title) { showToast('일정 이름을 입력해 주세요.'); return; }
-        const events = currentEvents();
-        const index = events.findIndex(item=>item.id===eventData.id);
-        if (index>=0) events[index]=eventData; else events.push(eventData);
-        store[weekKey()] = events; saveStore(); closeModal(); render(); showToast(index>=0?'일정을 수정했습니다.':'일정을 추가했습니다.');
+
+        if (seriesId) {
+          const masterFound = findStoredEvent(seriesId);
+          if (!masterFound) { showToast('반복 일정 원본을 찾을 수 없습니다.'); return; }
+          const master = { ...masterFound.event, recurrence: { ...(masterFound.event.recurrence || {}), exceptions: [...((masterFound.event.recurrence && masterFound.event.recurrence.exceptions) || [])] } };
+          if (scope === 'this') {
+            const existingOverrideId = $('eventIsOverride').value === '1' ? $('eventId').value : '';
+            if (!existingOverrideId || !findStoredEvent(existingOverrideId)) {
+              if (!master.recurrence.exceptions.includes(occurrenceDate)) master.recurrence.exceptions.push(occurrenceDate);
+              putStoredEvent(master);
+              eventData.id = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random());
+              eventData.overrideOf = seriesId;
+            } else {
+              eventData.id = existingOverrideId;
+              eventData.overrideOf = seriesId;
+            }
+            putStoredEvent(eventData);
+          } else {
+            master.title = eventData.title;
+            master.subject = eventData.subject;
+            master.date = date;
+            master.start = start;
+            master.end = end;
+            master.color = eventData.color;
+            master.note = eventData.note;
+            const nextRule = makeRecurrence(repeat,date,until,master.recurrence);
+            if (nextRule) master.recurrence = nextRule;
+            else delete master.recurrence;
+            putStoredEvent(master);
+          }
+        } else {
+          const id = $('eventId').value;
+          const existing = id ? findStoredEvent(id) : null;
+          if (existing) eventData.id = id;
+          const nextRule = makeRecurrence(repeat,date,until,existing?.event?.recurrence);
+          if (nextRule) eventData.recurrence = nextRule;
+          putStoredEvent(eventData);
+        }
+        saveStore(); closeModal(); render();
+        showToast(seriesId && scope === 'this' ? '이번 일정만 수정했습니다.' : (seriesId ? '반복 일정을 수정했습니다.' : '일정을 저장했습니다.'));
       }
       function deleteCurrentEvent() {
-        const id = $('eventId').value; if (!id) return;
-        store[weekKey()] = currentEvents().filter(item=>item.id!==id); saveStore(); closeModal(); render(); showToast('일정을 삭제했습니다.');
+        const id = $('eventId').value;
+        const seriesId = $('eventSeriesId').value;
+        const occurrenceDate = $('eventOccurrenceDate').value;
+        const scope = $('eventEditScope').value;
+        if (seriesId && scope === 'series') {
+          for (const [week, events] of Object.entries(store)) {
+            store[week] = events.filter(event => event.id !== seriesId && event.overrideOf !== seriesId);
+            if (!store[week].length) delete store[week];
+          }
+        } else if (seriesId) {
+          const masterFound = findStoredEvent(seriesId);
+          if (masterFound && masterFound.event.recurrence) {
+            const master = { ...masterFound.event, recurrence: { ...masterFound.event.recurrence, exceptions: [...(masterFound.event.recurrence.exceptions || [])] } };
+            if (!master.recurrence.exceptions.includes(occurrenceDate)) master.recurrence.exceptions.push(occurrenceDate);
+            putStoredEvent(master);
+          }
+          const idToRemove = $('eventIsOverride').value === '1' ? id : '';
+          if (idToRemove) removeStoredEvent(idToRemove);
+        } else if (id) {
+          removeStoredEvent(id);
+        } else return;
+        saveStore(); closeModal(); render();
+        showToast(seriesId && scope === 'series' ? '반복 일정을 모두 삭제했습니다.' : '일정을 삭제했습니다.');
       }
       function encodeShare(data) {
         const bytes = new TextEncoder().encode(JSON.stringify(data));
@@ -508,7 +759,10 @@
         return JSON.parse(new TextDecoder().decode(bytes));
       }
       async function shareCurrentWeek() {
-        const events = currentEvents();
+        const events = currentEvents().map(event => {
+          const { recurrence, seriesMasterId, occurrenceDate, isRecurring, isOverride, overrideOf, ...snapshot } = event;
+          return { ...snapshot, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()) };
+        });
         const payload = { version:1, weekStart:weekKey(), events };
         const url = `${location.href.split('#')[0]}#share=${encodeShare(payload)}`;
         if (location.protocol === 'file:') {
@@ -558,6 +812,106 @@
         history.replaceState(null,'',location.href.split('#')[0]);
         $('readOnlyBanner').classList.add('hidden'); $('quickAdd').classList.remove('hidden'); $('exportBtn').classList.remove('hidden');
         render(); showToast(`${cloned.length}개 일정을 내 플래너에 복사했습니다.`);
+        if (currentUser) syncAccountData(currentUser);
+      }
+
+
+      function openAccountModal() {
+        if (!authClient) {
+          showToast('인증 모듈을 연결하지 못했습니다. 페이지를 새로고침해 주세요.');
+          return;
+        }
+        $('accountBackdrop').classList.add('open');
+        renderAccountModal();
+      }
+      function closeAccountModal() { $('accountBackdrop').classList.remove('open'); }
+      function renderAccountModal() {
+        const signedIn = !!currentUser;
+        $('accountSignedIn').classList.toggle('hidden', !signedIn);
+        $('accountForm').classList.toggle('hidden', signedIn);
+        $('accountEmailLabel').textContent = currentUser ? currentUser.email : '';
+        $('accountSubtitle').textContent = signedIn ? '로그인된 계정의 시간표가 Neon 서버와 동기화됩니다.' : '계정을 만들면 여러 기기에서 같은 시간표를 사용할 수 있어요.';
+        if (!signedIn) renderAccountMode();
+      }
+      function renderAccountMode() {
+        $('accountTitle').textContent = accountAwaitingOtp ? '이메일 인증' : (accountMode === 'signup' ? '계정 만들기' : '로그인');
+        $('accountNameField').classList.toggle('hidden', accountMode !== 'signup' || accountAwaitingOtp);
+        $('accountPasswordField').classList.toggle('hidden', accountAwaitingOtp);
+        $('accountOtpField').classList.toggle('hidden', !accountAwaitingOtp);
+        $('accountModeToggle').classList.toggle('hidden', accountAwaitingOtp);
+        $('accountSubmit').textContent = accountAwaitingOtp ? '인증하고 계속하기' : (accountMode === 'signup' ? '회원가입' : '로그인');
+        $('accountStatus').textContent = accountAwaitingOtp ? '가입한 이메일로 전송된 인증 코드를 입력해 주세요.' : '회원가입 시 이메일 인증 코드가 전송됩니다.';
+        $('accountPassword').required = !accountAwaitingOtp;
+        $('accountOtp').required = accountAwaitingOtp;
+        $('accountSubmit').disabled = accountBusy;
+      }
+      async function finishAccountLogin() {
+        const result = await getAuthSession();
+        if (!result.user || !result.session) throw new Error('로그인 세션을 만들지 못했습니다.');
+        authSession = result.session;
+        currentUser = result.user;
+        await syncAccountData(currentUser);
+        renderAccountButton();
+        renderAccountModal();
+        closeAccountModal();
+        showToast('로그인 및 계정 동기화가 완료됐습니다.');
+      }
+      async function handleAccountSubmit(event) {
+        event.preventDefault();
+        if (accountBusy || !authClient) return;
+        accountBusy = true;
+        renderAccountMode();
+        $('accountStatus').textContent = '처리 중…';
+        try {
+          const email = $('accountEmail').value.trim();
+          if (accountAwaitingOtp) {
+            const result = await authClient.emailOtp.verifyEmail({ email, otp: $('accountOtp').value.trim() });
+            if (result.error) throw new Error(result.error.message || '인증 코드가 올바르지 않습니다.');
+            accountAwaitingOtp = false;
+            await finishAccountLogin();
+          } else if (accountMode === 'signup') {
+            const result = await authClient.signUp.email({
+              name: $('accountName').value.trim() || email.split('@')[0],
+              email,
+              password: $('accountPassword').value,
+            });
+            if (result.error) throw new Error(result.error.message || '회원가입에 실패했습니다.');
+            accountAwaitingOtp = true;
+            renderAccountMode();
+            $('accountStatus').textContent = '인증 코드를 이메일로 보냈습니다. 받은 코드를 입력해 주세요.';
+            $('accountOtp').focus();
+          } else {
+            const result = await authClient.signIn.email({ email, password: $('accountPassword').value, rememberMe: true });
+            if (result.error) throw new Error(result.error.message || '로그인에 실패했습니다.');
+            await finishAccountLogin();
+          }
+        } catch (error) {
+          $('accountStatus').textContent = error.message || '요청을 처리하지 못했습니다.';
+          showToast(error.message || '계정 요청 실패');
+        } finally {
+          accountBusy = false;
+          renderAccountMode();
+        }
+      }
+      async function handleAccountSignOut() {
+        try {
+          await authClient.signOut();
+          authSession = null;
+          currentUser = null;
+          cloudReady = false;
+          cloudPendingSave = false;
+          localStorage.removeItem(ACCOUNT_USER_KEY);
+          store = {};
+          localStorage.setItem(STORAGE_KEY, '{}');
+          renderAccountButton();
+          render();
+          renderAccountModal();
+          closeAccountModal();
+          $('saveStatus').textContent = '로그아웃됨 · 브라우저에 빈 시간표 표시';
+          showToast('로그아웃했습니다.');
+        } catch (error) {
+          showToast(error.message || '로그아웃에 실패했습니다.');
+        }
       }
 
       $('prevWeek').addEventListener('click',()=>changeWeek(-1));
@@ -574,11 +928,35 @@
       $('eventSubject').addEventListener('change',()=>{selectedColor=COLORS[$('eventSubject').value];renderColorOptions();});
       $('colorOptions').addEventListener('click',(event)=>{const btn=event.target.closest('[data-color]');if(!btn)return;selectedColor=btn.dataset.color;renderColorOptions();});
       $('copySharedBtn').addEventListener('click',copySharedToPlanner);
-      document.addEventListener('keydown',(event)=>{if(event.key==='Escape')closeModal();});
+      $('accountBtn').addEventListener('click',openAccountModal);
+      $('closeAccount').addEventListener('click',closeAccountModal);
+      $('accountCancel').addEventListener('click',closeAccountModal);
+      $('accountDone').addEventListener('click',closeAccountModal);
+      $('accountBackdrop').addEventListener('click',(event)=>{if(event.target===$('accountBackdrop'))closeAccountModal();});
+      $('accountForm').addEventListener('submit',handleAccountSubmit);
+      $('accountModeToggle').addEventListener('click',()=>{
+        accountMode = accountMode === 'signup' ? 'signin' : 'signup';
+        renderAccountMode();
+        $('accountModeToggle').textContent = accountMode === 'signup' ? '이미 계정이 있어요' : '처음 사용하시나요? 회원가입';
+      });
+      $('accountSignOut').addEventListener('click',handleAccountSignOut);
+      $('eventEditScope').addEventListener('change',()=>{
+        if ($('eventSeriesId').value) {
+          $('eventDate').value = $('eventEditScope').value === 'series'
+            ? $('eventSeriesStartDate').value
+            : $('eventOccurrenceDate').value;
+        }
+        syncRecurrenceFields();
+      });
+      $('eventRepeat').addEventListener('change',syncRecurrenceFields);
+      window.addEventListener('focus',refreshAccountData);
+      document.addEventListener('visibilitychange',refreshAccountData);
+      document.addEventListener('keydown',(event)=>{if(event.key==='Escape'){closeModal();closeAccountModal();}});
 
       loadSharedMode();
       render();
-      initializeCloudSync();
+      renderAccountButton();
+      initializeAuth();
     })();
   </script>
 </body>
