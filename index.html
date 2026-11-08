@@ -1,0 +1,501 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="theme-color" content="#f6f7fb" />
+  <title>STUDYFLOW — 주간 스터디 플래너</title>
+  <style>
+    :root {
+      --bg: #f6f7fb;
+      --surface: #ffffff;
+      --surface-2: #f9fafc;
+      --ink: #202438;
+      --muted: #858ba0;
+      --line: #e9ebf2;
+      --line-strong: #dfe2ec;
+      --accent: #645cf2;
+      --accent-soft: #efeeff;
+      --shadow: 0 12px 36px rgba(31, 36, 64, .07);
+      --radius: 18px;
+      --hour-height: 60px;
+      font-family: Inter, Pretendard, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--ink); }
+    button, input, select, textarea { font: inherit; }
+    button { cursor: pointer; }
+    .app-shell { min-height: 100vh; }
+    .topbar {
+      height: 76px; padding: 0 34px; display: flex; align-items: center; justify-content: space-between;
+      border-bottom: 1px solid var(--line); background: rgba(255,255,255,.88); backdrop-filter: blur(16px);
+      position: sticky; top: 0; z-index: 20;
+    }
+    .brand { display: flex; align-items: center; gap: 11px; font-weight: 800; letter-spacing: -.045em; font-size: 19px; }
+    .brand-mark { width: 34px; height: 34px; border-radius: 11px; color: #fff; background: linear-gradient(140deg, #8179ff, #5750df); display: grid; place-items: center; box-shadow: 0 5px 12px #625cf044; }
+    .brand-mark svg { width: 19px; height: 19px; }
+    .brand small { display: block; font-size: 9px; letter-spacing: .15em; color: #9a9db0; font-weight: 750; margin-top: 1px; }
+    .top-actions { display: flex; align-items: center; gap: 9px; }
+    .btn { border: 1px solid var(--line-strong); background: #fff; color: #51566d; border-radius: 11px; padding: 10px 14px; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; gap: 8px; transition: .18s ease; }
+    .btn:hover { border-color: #c9c7fb; background: #fbfaff; transform: translateY(-1px); }
+    .btn svg { width: 16px; height: 16px; }
+    .btn.primary { background: var(--accent); color: #fff; border-color: var(--accent); box-shadow: 0 5px 12px #645cf233; }
+    .btn.primary:hover { background: #554de0; }
+    .btn.ghost { background: transparent; }
+    .btn.small { padding: 8px 11px; font-size: 12px; }
+    .avatar { width: 34px; height: 34px; display: grid; place-items: center; border-radius: 50%; background: #e9e8ff; color: #5c55e7; font-size: 12px; font-weight: 800; margin-left: 5px; }
+    .layout { max-width: 1600px; margin: 0 auto; padding: 30px 34px 48px; display: grid; grid-template-columns: 250px minmax(0,1fr); gap: 26px; }
+    .sidebar { display: flex; flex-direction: column; gap: 17px; }
+    .side-card, .main-card { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); box-shadow: 0 3px 14px rgba(31,36,64,.025); }
+    .side-card { padding: 20px; }
+    .eyebrow { color: #a0a4b5; text-transform: uppercase; letter-spacing: .13em; font-size: 10px; font-weight: 800; }
+    .side-title { margin: 8px 0 5px; font-size: 16px; letter-spacing: -.035em; }
+    .muted { color: var(--muted); }
+    .week-summary { display: flex; align-items: baseline; justify-content: space-between; margin: 12px 0 15px; }
+    .week-summary strong { font-size: 27px; letter-spacing: -.06em; }
+    .week-summary span { font-size: 11px; color: var(--muted); }
+    .progress-track { height: 7px; background: #f0f1f6; border-radius: 99px; overflow: hidden; }
+    .progress-fill { height: 100%; width: 0; background: linear-gradient(90deg,#8c85ff,#5e57ec); border-radius: inherit; transition: width .25s; }
+    .progress-caption { display: flex; justify-content: space-between; margin-top: 9px; font-size: 11px; color: var(--muted); }
+    .quick-add { width: 100%; justify-content: center; margin-top: 17px; padding: 12px; }
+    .subject-list { display: flex; flex-direction: column; gap: 12px; margin-top: 16px; }
+    .subject-item { display: flex; align-items: center; gap: 9px; font-size: 12px; color: #666c80; }
+    .dot { width: 9px; height: 9px; border-radius: 3px; flex: 0 0 auto; }
+    .tip-card { background: #f0efff; border: 1px solid #e7e5ff; }
+    .tip-icon { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; color: #625be9; background: #fff; margin-bottom: 11px; }
+    .tip-card p { margin: 6px 0 0; color: #77749f; font-size: 11px; line-height: 1.65; }
+    .main { min-width: 0; }
+    .page-heading { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; margin: 3px 2px 21px; }
+    .page-heading h1 { margin: 0; font-size: clamp(25px,3vw,32px); letter-spacing: -.06em; line-height: 1.15; }
+    .page-heading p { margin: 8px 0 0; color: var(--muted); font-size: 13px; }
+    .heading-right { display: flex; align-items: center; gap: 8px; }
+    .week-controls { display: flex; align-items: center; gap: 5px; padding: 4px; background: white; border: 1px solid var(--line); border-radius: 12px; }
+    .icon-btn { border: 0; background: transparent; width: 30px; height: 30px; border-radius: 8px; display: grid; place-items: center; color: #70758a; }
+    .icon-btn:hover { background: #f2f2fa; }
+    .icon-btn svg { width: 15px; height: 15px; }
+    .week-label { min-width: 120px; text-align: center; font-size: 12px; font-weight: 750; }
+    .main-card { overflow: hidden; }
+    .calendar-top { padding: 18px 21px; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--line); gap: 12px; }
+    .calendar-top strong { font-size: 13px; letter-spacing: -.02em; }
+    .calendar-top span { font-size: 11px; color: var(--muted); margin-left: 8px; }
+    .view-label { color: #777d91; font-size: 11px; background: #f7f7fb; border: 1px solid var(--line); border-radius: 7px; padding: 6px 9px; }
+    .calendar-scroll { overflow-x: auto; }
+    .calendar { min-width: 890px; }
+    .days-head { display: grid; grid-template-columns: 58px repeat(7,minmax(0,1fr)); border-bottom: 1px solid var(--line); background: #fff; position: sticky; top: 0; z-index: 4; }
+    .time-head { border-right: 1px solid var(--line); }
+    .day-head { text-align: center; padding: 14px 4px 12px; border-right: 1px solid #f0f1f5; }
+    .day-head:last-child { border-right: 0; }
+    .day-name { font-size: 11px; font-weight: 700; color: #8b90a3; }
+    .day-date { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 9px; margin: 7px auto 0; font-size: 13px; font-weight: 750; color: #44495f; }
+    .day-head.today .day-name { color: var(--accent); }
+    .day-head.today .day-date { background: var(--accent); color: white; box-shadow: 0 4px 10px #645cf244; }
+    .calendar-body { display: grid; grid-template-columns: 58px repeat(7,minmax(0,1fr)); }
+    .time-rail { position: relative; border-right: 1px solid var(--line); background: #fff; }
+    .hour-label { position: absolute; right: 9px; transform: translateY(-7px); color: #a1a5b4; font-size: 10px; font-weight: 600; }
+    .day-column { height: calc(var(--hour-height) * 18); position: relative; border-right: 1px solid #f0f1f5; background-image: repeating-linear-gradient(to bottom, transparent 0, transparent calc(var(--hour-height) - 1px), #eceef4 calc(var(--hour-height) - 1px), #eceef4 var(--hour-height)); }
+    .day-column:last-child { border-right: 0; }
+    .day-column.today-col { background-color: #fdfdff; }
+    .day-column::after { content: ""; position: absolute; inset: 0; pointer-events: none; background-image: repeating-linear-gradient(to bottom, transparent 0, transparent 29px, #f6f7fa 29px, #f6f7fa 30px); }
+    .event { position: absolute; z-index: 2; border-radius: 8px; padding: 7px 7px 6px; overflow: hidden; border: 1px solid color-mix(in srgb, var(--event-color) 23%, white); background: color-mix(in srgb, var(--event-color) 10%, white); color: #3e4358; text-align: left; cursor: pointer; min-height: 32px; transition: filter .15s, transform .15s; }
+    .event:hover { filter: saturate(1.18); transform: translateY(-1px); z-index: 5; box-shadow: 0 5px 12px rgba(42,45,75,.09); }
+    .event::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 3px; background: var(--event-color); }
+    .event-subject { display: block; font-size: 9px; font-weight: 800; color: var(--event-color); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-bottom: 3px; }
+    .event-title { display: block; font-size: 11px; line-height: 1.35; font-weight: 750; overflow: hidden; text-overflow: ellipsis; }
+    .event-time { display: block; font-size: 9px; color: #777d90; margin-top: 4px; white-space: nowrap; }
+    .empty-hint { position: absolute; top: 46%; left: 50%; transform: translate(-50%,-50%); color: #c1c4d0; font-size: 10px; white-space: nowrap; pointer-events: none; }
+    .calendar-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; border-top: 1px solid var(--line); padding: 13px 20px; color: #9a9eae; font-size: 10px; }
+    .footer-dot { display: inline-block; width: 6px; height: 6px; background: #70c7a0; border-radius: 50%; margin-right: 6px; }
+    .read-only-banner { padding: 11px 17px; background: #f3f1ff; color: #5c56cf; font-size: 12px; font-weight: 650; border-bottom: 1px solid #e7e4ff; display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+    .read-only-banner button { border: 0; color: #5c56cf; background: transparent; font-size: 11px; font-weight: 800; text-decoration: underline; }
+    .toast { position: fixed; z-index: 50; left: 50%; bottom: 26px; transform: translate(-50%,20px); background: #292d42; color: #fff; padding: 11px 16px; border-radius: 11px; font-size: 12px; font-weight: 650; box-shadow: var(--shadow); opacity: 0; pointer-events: none; transition: .22s; }
+    .toast.show { opacity: 1; transform: translate(-50%,0); }
+    .modal-backdrop { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; padding: 18px; background: rgba(28,31,52,.38); backdrop-filter: blur(4px); z-index: 40; }
+    .modal-backdrop.open { display: flex; }
+    .modal { width: min(100%,470px); max-height: min(90vh,760px); overflow: auto; background: #fff; border-radius: 20px; box-shadow: 0 24px 70px rgba(25,28,50,.2); padding: 24px; animation: pop .18s ease-out; }
+    @keyframes pop { from { opacity: 0; transform: translateY(7px) scale(.985); } to { opacity: 1; transform: none; } }
+    .modal-head { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 20px; }
+    .modal-head h2 { margin: 0; font-size: 20px; letter-spacing: -.05em; }
+    .modal-head p { margin: 6px 0 0; color: var(--muted); font-size: 11px; }
+    .close-btn { border: 0; width: 30px; height: 30px; border-radius: 9px; background: #f5f6fa; color: #7f8497; display: grid; place-items: center; }
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+    .field { display: flex; flex-direction: column; gap: 7px; min-width: 0; }
+    .field.full { grid-column: 1/-1; }
+    .field label { color: #686e82; font-size: 11px; font-weight: 750; }
+    .field input, .field select, .field textarea { width: 100%; min-width: 0; border: 1px solid #e5e7ef; background: #fbfcfe; border-radius: 10px; padding: 11px 12px; color: #30354a; font-size: 12px; outline: none; transition: .15s; }
+    .field textarea { resize: vertical; min-height: 65px; }
+    .field input:focus, .field select:focus, .field textarea:focus { border-color: #aaa5ff; box-shadow: 0 0 0 3px #645cf214; background: #fff; }
+    .color-options { display: flex; gap: 9px; align-items: center; padding: 3px 0; }
+    .color-option { width: 23px; height: 23px; border-radius: 50%; border: 3px solid #fff; outline: 1px solid transparent; box-shadow: 0 0 0 1px #e5e6ec; }
+    .color-option.selected { outline: 2px solid #5e58e8; outline-offset: 2px; }
+    .modal-actions { display: flex; justify-content: space-between; align-items: center; margin-top: 22px; gap: 10px; }
+    .action-right { display: flex; gap: 8px; }
+    .danger-btn { border: 0; background: transparent; color: #d45c70; font-size: 12px; font-weight: 750; padding: 9px 4px; }
+    .hidden { display: none !important; }
+    @media (max-width: 1050px) {
+      .layout { grid-template-columns: 210px minmax(0,1fr); gap: 17px; padding: 24px 20px 40px; }
+      .topbar { padding: 0 20px; }
+      .side-card { padding: 17px; }
+    }
+    @media (max-width: 760px) {
+      .topbar { height: 64px; padding: 0 15px; }
+      .brand { font-size: 17px; }
+      .top-actions .btn:not(.primary) { display: none; }
+      .avatar { display: none; }
+      .layout { display: flex; flex-direction: column; padding: 21px 13px 30px; gap: 16px; }
+      .sidebar { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+      .sidebar .tip-card { display: none; }
+      .side-card { padding: 14px; }
+      .side-card.legend-card { display: none; }
+      .side-title { font-size: 14px; }
+      .week-summary { margin: 7px 0 10px; }
+      .week-summary strong { font-size: 22px; }
+      .quick-add { margin-top: 11px; padding: 9px; font-size: 11px; }
+      .page-heading { align-items: flex-start; flex-direction: column; margin: 3px 1px 14px; gap: 13px; }
+      .page-heading h1 { font-size: 27px; }
+      .heading-right { width: 100%; justify-content: space-between; }
+      .calendar-top { padding: 14px; }
+      .calendar-footer { padding: 12px 14px; }
+    }
+    @media (max-width: 420px) {
+      .sidebar { grid-template-columns: 1fr; }
+      .sidebar .side-card:first-child { display: none; }
+      .form-grid { grid-template-columns: 1fr; }
+      .field.full { grid-column: auto; }
+      .modal { padding: 19px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="brand">
+        <div class="brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none"><path d="M7 4.5h10M7 9h10M7 13.5h6M5 2.8h14a1.2 1.2 0 0 1 1.2 1.2v16a1.2 1.2 0 0 1-1.2 1.2H5A1.2 1.2 0 0 1 3.8 20V4A1.2 1.2 0 0 1 5 2.8Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/><path d="m14.5 17 1.5 1.5 3-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <div>STUDYFLOW<small>PLAN YOUR WEEK</small></div>
+      </div>
+      <div class="top-actions">
+        <button class="btn" id="exportBtn" title="시간표를 JSON 파일로 저장"><svg viewBox="0 0 24 24" fill="none"><path d="M12 3v12m0 0 4-4m-4 4-4-4M4 17v3h16v-3" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg><span>내보내기</span></button>
+        <button class="btn primary" id="shareBtn"><svg viewBox="0 0 24 24" fill="none"><path d="M12 15V3m0 0L8 7m4-4 4 4M5 13v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg>시간표 공유</button>
+        <div class="avatar">S</div>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="sidebar">
+        <section class="side-card">
+          <div class="eyebrow">WEEKLY OVERVIEW</div>
+          <h2 class="side-title">이번 주 학습량</h2>
+          <div class="week-summary"><strong id="totalHours">0h 00m</strong><span id="sessionCount">0개 일정</span></div>
+          <div class="progress-track"><div class="progress-fill" id="progressFill"></div></div>
+          <div class="progress-caption"><span>목표 20시간</span><span id="progressText">0%</span></div>
+          <button class="btn primary quick-add" id="quickAdd"><svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>일정 추가하기</button>
+        </section>
+        <section class="side-card legend-card">
+          <div class="eyebrow">SUBJECTS</div>
+          <h2 class="side-title">과목별 색상</h2>
+          <div class="subject-list">
+            <div class="subject-item"><i class="dot" style="background:#7770ed"></i>수학</div>
+            <div class="subject-item"><i class="dot" style="background:#45a6c9"></i>영어</div>
+            <div class="subject-item"><i class="dot" style="background:#e5a34c"></i>국어</div>
+            <div class="subject-item"><i class="dot" style="background:#55ae8a"></i>과학</div>
+            <div class="subject-item"><i class="dot" style="background:#dd7d9a"></i>기타</div>
+          </div>
+        </section>
+        <section class="side-card tip-card">
+          <div class="tip-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none"><path d="M9 18h6m-5 3h4m-2-19a7 7 0 0 0-4 12.7c.6.4 1 1 1 1.8h6c0-.8.4-1.4 1-1.8A7 7 0 0 0 12 2Z" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <strong style="font-size:12px">작은 팁</strong>
+          <p>과목별로 색상을 구분하면 한 주의 학습 균형을 한눈에 확인할 수 있어요.</p>
+        </section>
+      </aside>
+
+      <main class="main">
+        <div class="page-heading">
+          <div>
+            <h1>나의 스터디 플래너<span style="color:var(--accent)">.</span></h1>
+            <p>계획을 세우고, 흐름을 만들고, 꾸준히 이어가세요.</p>
+          </div>
+          <div class="heading-right">
+            <div class="week-controls">
+              <button class="icon-btn" id="prevWeek" aria-label="이전 주"><svg viewBox="0 0 24 24" fill="none"><path d="m14.5 5-7 7 7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+              <div class="week-label" id="weekLabel"></div>
+              <button class="icon-btn" id="nextWeek" aria-label="다음 주"><svg viewBox="0 0 24 24" fill="none"><path d="m9.5 5 7 7-7 7" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+            </div>
+            <button class="btn small" id="todayBtn">이번 주</button>
+          </div>
+        </div>
+
+        <section class="main-card">
+          <div id="readOnlyBanner" class="read-only-banner hidden"><span>공유된 시간표를 보고 있어요. 내 플래너에 복사해서 사용할 수 있습니다.</span><button id="copySharedBtn">내 플래너에 복사</button></div>
+          <div class="calendar-top"><div><strong>주간 시간표</strong><span>06:00 — 24:00</span></div><div class="view-label">WEEK VIEW</div></div>
+          <div class="calendar-scroll">
+            <div class="calendar">
+              <div class="days-head" id="daysHead"><div class="time-head"></div></div>
+              <div class="calendar-body" id="calendarBody">
+                <div class="time-rail" id="timeRail"></div>
+              </div>
+            </div>
+          </div>
+          <div class="calendar-footer"><span><i class="footer-dot"></i><span id="saveStatus">변경 사항은 이 브라우저에 자동 저장됩니다.</span></span><span>일정을 선택하면 수정할 수 있어요</span></div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="modal-backdrop" id="modalBackdrop" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <div class="modal">
+      <div class="modal-head"><div><h2 id="modalTitle">새 일정 만들기</h2><p>집중할 시간을 미리 확보해 보세요.</p></div><button class="close-btn" id="closeModal" aria-label="닫기">✕</button></div>
+      <form id="eventForm">
+        <input type="hidden" id="eventId" />
+        <div class="form-grid">
+          <div class="field full"><label for="eventTitle">일정 이름</label><input id="eventTitle" maxlength="60" placeholder="예: 미적분 개념 정리" required /></div>
+          <div class="field"><label for="eventSubject">과목</label><select id="eventSubject"><option value="수학">수학</option><option value="영어">영어</option><option value="국어">국어</option><option value="과학">과학</option><option value="기타">기타</option></select></div>
+          <div class="field"><label for="eventDate">날짜</label><input id="eventDate" type="date" required /></div>
+          <div class="field"><label for="eventStart">시작</label><input id="eventStart" type="time" value="09:00" required /></div>
+          <div class="field"><label for="eventEnd">종료</label><input id="eventEnd" type="time" value="10:00" required /></div>
+          <div class="field full"><label>색상</label><div class="color-options" id="colorOptions"></div></div>
+          <div class="field full"><label for="eventNote">메모 <span style="font-weight:500;color:#a0a4b5">(선택)</span></label><textarea id="eventNote" maxlength="180" placeholder="공부할 범위나 간단한 메모를 적어보세요."></textarea></div>
+        </div>
+        <div class="modal-actions"><button type="button" class="danger-btn hidden" id="deleteEvent">일정 삭제</button><div class="action-right"><button type="button" class="btn" id="cancelModal">취소</button><button type="submit" class="btn primary">저장하기</button></div></div>
+      </form>
+    </div>
+  </div>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script>
+    (() => {
+      'use strict';
+      const STORAGE_KEY = 'studyflow-planner-v1';
+      const START_HOUR = 6;
+      const END_HOUR = 24;
+      const HOUR_HEIGHT = 60;
+      const COLORS = { '수학': '#7770ed', '영어': '#45a6c9', '국어': '#e5a34c', '과학': '#55ae8a', '기타': '#dd7d9a' };
+      const COLOR_LIST = Object.values(COLORS);
+      const $ = (id) => document.getElementById(id);
+      let store = loadStore();
+      let weekStart = getMonday(new Date());
+      let selectedColor = COLORS['수학'];
+      let sharedMode = false;
+      let sharedSnapshot = null;
+      let toastTimer;
+
+      function loadStore() {
+        try {
+          const value = JSON.parse(localStorage.getItem(STORAGE_KEY) || '{}');
+          return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+        } catch { return {}; }
+      }
+      function saveStore() {
+        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); $('saveStatus').textContent = '방금 저장됨'; }
+        catch { $('saveStatus').textContent = '저장 공간을 사용할 수 없습니다.'; }
+      }
+      function dateKey(date) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
+      function parseDate(key) { const [y,m,d] = key.split('-').map(Number); return new Date(y,m-1,d,12); }
+      function getMonday(date) { const d = new Date(date.getFullYear(),date.getMonth(),date.getDate(),12); const day = (d.getDay()+6)%7; d.setDate(d.getDate()-day); return d; }
+      function addDays(date, n) { const d = new Date(date); d.setDate(d.getDate()+n); return d; }
+      function weekKey() { return dateKey(weekStart); }
+      function currentEvents() {
+        if (sharedMode && sharedSnapshot) return sharedSnapshot.events.slice();
+        return (store[weekKey()] || []).slice();
+      }
+      function formatDate(date, options) { return new Intl.DateTimeFormat('ko-KR', options).format(date); }
+      function formatTime(value) { return value || '00:00'; }
+      function minutes(value) { const [h,m] = value.split(':').map(Number); return h*60+m; }
+      function duration(event) { return Math.max(0, minutes(event.end)-minutes(event.start)); }
+      function showToast(message) {
+        const el = $('toast'); el.textContent = message; el.classList.add('show');
+        clearTimeout(toastTimer); toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
+      }
+      function escapeHtml(value) {
+        return String(value ?? '').replace(/[&<>"']/g, (ch) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch]));
+      }
+      function openModal(date = dateKey(new Date()), start = '09:00', event = null) {
+        if (sharedMode) return;
+        $('eventForm').reset();
+        $('eventId').value = event?.id || '';
+        $('eventTitle').value = event?.title || '';
+        $('eventSubject').value = event?.subject || '수학';
+        $('eventDate').value = event?.date || date;
+        $('eventStart').value = event?.start || start;
+        const defaultEnd = minutes(start) + 60;
+        $('eventEnd').value = event?.end || `${String(Math.floor(defaultEnd/60)%24).padStart(2,'0')}:${String(defaultEnd%60).padStart(2,'0')}`;
+        $('eventNote').value = event?.note || '';
+        selectedColor = event?.color || COLORS[$('eventSubject').value] || COLORS['수학'];
+        $('modalTitle').textContent = event ? '일정 수정하기' : '새 일정 만들기';
+        $('deleteEvent').classList.toggle('hidden', !event);
+        renderColorOptions();
+        $('modalBackdrop').classList.add('open');
+        setTimeout(() => $('eventTitle').focus(), 50);
+      }
+      function closeModal() { $('modalBackdrop').classList.remove('open'); }
+      function renderColorOptions() {
+        $('colorOptions').innerHTML = COLOR_LIST.map(color => `<button type="button" class="color-option ${selectedColor===color?'selected':''}" style="background:${color}" data-color="${color}" aria-label="색상 선택"></button>`).join('');
+      }
+      function render() {
+        const dates = Array.from({length:7},(_,i)=>addDays(weekStart,i));
+        const end = dates[6];
+        $('weekLabel').textContent = `${formatDate(weekStart,{month:'short',day:'numeric'})} – ${formatDate(end,{month:'short',day:'numeric'})}`;
+        const todayKey = dateKey(new Date());
+        $('daysHead').innerHTML = '<div class="time-head"></div>' + dates.map(date => {
+          const key = dateKey(date); const today = key === todayKey;
+          return `<div class="day-head ${today?'today':''}"><div class="day-name">${formatDate(date,{weekday:'short'})}</div><div class="day-date">${date.getDate()}</div></div>`;
+        }).join('');
+        $('timeRail').innerHTML = Array.from({length:END_HOUR-START_HOUR},(_,i)=>`<div class="hour-label" style="top:${i*HOUR_HEIGHT}px">${String(START_HOUR+i).padStart(2,'0')}:00</div>`).join('');
+        const events = currentEvents();
+        $('calendarBody').innerHTML = '<div class="time-rail" id="timeRailClone">' + $('timeRail').innerHTML + '</div>' + dates.map(date => {
+          const key = dateKey(date); const dayEvents = events.filter(event => event.date === key);
+          return `<div class="day-column ${key===todayKey?'today-col':''}" data-date="${key}">${renderDayEvents(dayEvents)}</div>`;
+        }).join('');
+        const total = events.reduce((sum,event)=>sum+duration(event),0);
+        const hours = Math.floor(total/60); const mins = total%60;
+        $('totalHours').textContent = `${hours}h ${String(mins).padStart(2,'0')}m`;
+        $('sessionCount').textContent = `${events.length}개 일정`;
+        const pct = Math.min(100,Math.round(total/(20*60)*100));
+        $('progressFill').style.width = pct+'%'; $('progressText').textContent = pct+'%';
+        $('calendarBody').querySelectorAll('.day-column').forEach(col => {
+          col.addEventListener('click', (event) => {
+            if (sharedMode || event.target.closest('.event')) return;
+            const rect = col.getBoundingClientRect();
+            const y = event.clientY - rect.top;
+            const minsFromStart = Math.max(0,Math.min((END_HOUR-START_HOUR)*60-30,Math.floor(y)));
+            const snapped = Math.floor(minsFromStart/30)*30 + START_HOUR*60;
+            const time = `${String(Math.floor(snapped/60)).padStart(2,'0')}:${String(snapped%60).padStart(2,'0')}`;
+            openModal(col.dataset.date,time);
+          });
+        });
+        document.querySelectorAll('.event').forEach(el => el.addEventListener('click',(event)=>{
+          event.stopPropagation();
+          if (sharedMode) return;
+          const found = currentEvents().find(item=>item.id===el.dataset.id);
+          if (found) openModal(found.date,found.start,found);
+        }));
+        $('quickAdd').disabled = sharedMode;
+        $('quickAdd').style.opacity = sharedMode ? '.45' : '1';
+        $('shareBtn').textContent = '시간표 공유';
+      }
+      function renderDayEvents(events) {
+        if (!events.length) return '<div class="empty-hint">＋ 클릭해서 일정 추가</div>';
+        const sorted = events.slice().sort((a,b)=>minutes(a.start)-minutes(b.start));
+        const laneEnds = [];
+        const placed = sorted.map(event => {
+          const start = minutes(event.start); const end = minutes(event.end);
+          let lane = laneEnds.findIndex(value => value <= start);
+          if (lane === -1) lane = laneEnds.length;
+          laneEnds[lane] = end;
+          return {event,lane,start,end};
+        });
+        const laneCount = Math.max(1,laneEnds.length);
+        return placed.map(({event,lane,start,end}) => {
+          const top = (start - START_HOUR*60);
+          const height = Math.max(32,end-start-3);
+          const width = 100/laneCount;
+          const left = lane*width;
+          const color = event.color || COLORS[event.subject] || COLORS['기타'];
+          return `<button type="button" class="event" data-id="${escapeHtml(event.id)}" style="top:${top}px;height:${height}px;left:calc(${left}% + 3px);width:calc(${width}% - 6px);--event-color:${color}" title="${escapeHtml(event.title)} · ${event.start}–${event.end}"><span class="event-subject">${escapeHtml(event.subject)}</span><span class="event-title">${escapeHtml(event.title)}</span><span class="event-time">${event.start} – ${event.end}</span></button>`;
+        }).join('');
+      }
+      function changeWeek(offset) { weekStart = addDays(weekStart,offset*7); render(); }
+      function handleSubmit(event) {
+        event.preventDefault();
+        if (sharedMode) return;
+        const date = $('eventDate').value;
+        const start = $('eventStart').value;
+        const end = $('eventEnd').value;
+        if (!date || !start || !end || minutes(start)<START_HOUR*60 || minutes(end)>END_HOUR*60 || minutes(end)<=minutes(start)) { showToast('시간표 범위(06:00–24:00) 안에서 종료 시간을 시작보다 늦게 설정해 주세요.'); return; }
+        const eventDate = parseDate(date);
+        if (dateKey(getMonday(eventDate)) !== weekKey()) { showToast('현재 선택한 주의 날짜를 입력해 주세요.'); return; }
+        const eventData = { id:$('eventId').value || (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random())), title:$('eventTitle').value.trim(), subject:$('eventSubject').value, date, start, end, color:selectedColor, note:$('eventNote').value.trim() };
+        if (!eventData.title) { showToast('일정 이름을 입력해 주세요.'); return; }
+        const events = currentEvents();
+        const index = events.findIndex(item=>item.id===eventData.id);
+        if (index>=0) events[index]=eventData; else events.push(eventData);
+        store[weekKey()] = events; saveStore(); closeModal(); render(); showToast(index>=0?'일정을 수정했습니다.':'일정을 추가했습니다.');
+      }
+      function deleteCurrentEvent() {
+        const id = $('eventId').value; if (!id) return;
+        store[weekKey()] = currentEvents().filter(item=>item.id!==id); saveStore(); closeModal(); render(); showToast('일정을 삭제했습니다.');
+      }
+      function encodeShare(data) {
+        const bytes = new TextEncoder().encode(JSON.stringify(data));
+        let binary = ''; bytes.forEach(byte => binary += String.fromCharCode(byte));
+        return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+      }
+      function decodeShare(encoded) {
+        const base64 = encoded.replace(/-/g,'+').replace(/_/g,'/');
+        const binary = atob(base64 + '='.repeat((4-base64.length%4)%4));
+        const bytes = Uint8Array.from(binary, char=>char.charCodeAt(0));
+        return JSON.parse(new TextDecoder().decode(bytes));
+      }
+      async function shareCurrentWeek() {
+        const events = currentEvents();
+        const payload = { version:1, weekStart:weekKey(), events };
+        const url = `${location.href.split('#')[0]}#share=${encodeShare(payload)}`;
+        if (location.protocol === 'file:') {
+          exportData(payload, 'studyflow-share.json');
+          showToast('파일로 내보냈어요. 링크 공유는 사이트 배포 후 사용할 수 있습니다.');
+          return;
+        }
+        try {
+          await navigator.clipboard.writeText(url);
+          showToast('이번 주 시간표 공유 링크를 복사했습니다.');
+        } catch {
+          window.prompt('아래 링크를 복사해 공유하세요.',url);
+        }
+      }
+      function loadSharedMode() {
+        const match = location.hash.match(/^#share=(.+)$/);
+        if (!match) return false;
+        try {
+          const payload = decodeShare(match[1]);
+          if (payload.version!==1 || !/^\d{4}-\d{2}-\d{2}$/.test(payload.weekStart) || !Array.isArray(payload.events)) throw new Error('invalid');
+          const monday = parseDate(payload.weekStart);
+          if (dateKey(getMonday(monday))!==payload.weekStart) throw new Error('invalid week');
+          const valid = payload.events.filter(item => item && typeof item.title==='string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) && /^\d{2}:\d{2}$/.test(item.start) && /^\d{2}:\d{2}$/.test(item.end) && minutes(item.start)>=START_HOUR*60 && minutes(item.end)<=END_HOUR*60 && minutes(item.end)>minutes(item.start) && dateKey(getMonday(parseDate(item.date)))===payload.weekStart).map(item=>({...item,id:String(item.id||''),title:item.title.slice(0,60),subject:Object.prototype.hasOwnProperty.call(COLORS,item.subject)?item.subject:'기타',color:COLOR_LIST.includes(item.color)?item.color:(COLORS[item.subject]||COLORS['기타']),note:String(item.note||'').slice(0,180)}));
+          sharedSnapshot = { weekStart:payload.weekStart, events:valid };
+          weekStart = monday; sharedMode = true;
+          $('readOnlyBanner').classList.remove('hidden');
+          $('quickAdd').classList.add('hidden');
+          $('exportBtn').classList.add('hidden');
+          $('saveStatus').textContent = '공유된 시간표 · 읽기 전용';
+          return true;
+        } catch { showToast('공유 링크가 올바르지 않거나 손상되었습니다.'); return false; }
+      }
+      function exportData(data = null, filename = 'studyflow-planner.json') {
+        const payload = data || { version:1, weeks:store };
+        const blob = new Blob([JSON.stringify(payload,null,2)],{type:'application/json'});
+        const url = URL.createObjectURL(blob); const a = document.createElement('a');
+        a.href=url; a.download=filename; document.body.appendChild(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+        if (!data) showToast('시간표를 JSON 파일로 내보냈습니다.');
+      }
+      function copySharedToPlanner() {
+        if (!sharedSnapshot) return;
+        const key = sharedSnapshot.weekStart;
+        const existing = store[key] || [];
+        const cloned = sharedSnapshot.events.map(item=>({...item,id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())}));
+        store[key] = [...existing,...cloned]; saveStore();
+        sharedMode=false; sharedSnapshot=null;
+        history.replaceState(null,'',location.href.split('#')[0]);
+        $('readOnlyBanner').classList.add('hidden'); $('quickAdd').classList.remove('hidden'); $('exportBtn').classList.remove('hidden');
+        render(); showToast(`${cloned.length}개 일정을 내 플래너에 복사했습니다.`);
+      }
+
+      $('prevWeek').addEventListener('click',()=>changeWeek(-1));
+      $('nextWeek').addEventListener('click',()=>changeWeek(1));
+      $('todayBtn').addEventListener('click',()=>{weekStart=getMonday(new Date());render();});
+      $('quickAdd').addEventListener('click',()=>openModal(dateKey(weekStart),'09:00'));
+      $('shareBtn').addEventListener('click',shareCurrentWeek);
+      $('exportBtn').addEventListener('click',()=>exportData());
+      $('closeModal').addEventListener('click',closeModal);
+      $('cancelModal').addEventListener('click',closeModal);
+      $('modalBackdrop').addEventListener('click',(event)=>{if(event.target===$('modalBackdrop'))closeModal();});
+      $('eventForm').addEventListener('submit',handleSubmit);
+      $('deleteEvent').addEventListener('click',deleteCurrentEvent);
+      $('eventSubject').addEventListener('change',()=>{selectedColor=COLORS[$('eventSubject').value];renderColorOptions();});
+      $('colorOptions').addEventListener('click',(event)=>{const btn=event.target.closest('[data-color]');if(!btn)return;selectedColor=btn.dataset.color;renderColorOptions();});
+      $('copySharedBtn').addEventListener('click',copySharedToPlanner);
+      document.addEventListener('keydown',(event)=>{if(event.key==='Escape')closeModal();});
+
+      loadSharedMode();
+      render();
+    })();
+  </script>
+</body>
+</html>
