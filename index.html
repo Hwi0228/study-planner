@@ -133,6 +133,16 @@
     .hidden { display: none !important; }
 
     #accountBtn { max-width: 190px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .share-intro { color: #777d91; font-size: 12px; line-height: 1.65; margin: -7px 0 17px; }
+    .share-link-row { display: flex; gap: 7px; margin-top: 14px; }
+    .share-link-row input { min-width: 0; flex: 1; border: 1px solid #e5e7ef; background: #fbfcfe; border-radius: 10px; padding: 10px; font-size: 11px; color: #555b70; }
+    .share-list-heading { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 22px 0 9px; font-size: 12px; }
+    .share-list { display: flex; flex-direction: column; gap: 8px; max-height: 220px; overflow: auto; }
+    .share-item { display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 1px solid var(--line); border-radius: 11px; padding: 10px 11px; }
+    .share-item strong { display: block; font-size: 11px; }
+    .share-item small { display: block; color: var(--muted); font-size: 10px; margin-top: 4px; }
+    .share-item button { border: 0; background: #fff0f1; color: #c34f63; font-size: 10px; font-weight: 750; padding: 7px 9px; border-radius: 8px; white-space: nowrap; }
+    .share-item button:disabled { background: #f3f4f7; color: #a3a7b4; cursor: default; }
     @media (max-width: 760px) {
       .top-actions #accountBtn { display: inline-flex; max-width: 110px; padding: 8px 10px; font-size: 11px; }
     }
@@ -294,6 +304,18 @@
     </div>
   </div>
 
+  <div class="modal-backdrop" id="shareBackdrop" role="dialog" aria-modal="true" aria-labelledby="shareTitle">
+    <div class="modal">
+      <div class="modal-head"><div><h2 id="shareTitle">주간 시간표 공유</h2><p>링크를 받은 사람은 로그인 없이 읽을 수 있습니다.</p></div><button class="close-btn" id="closeShare" aria-label="닫기">✕</button></div>
+      <p class="share-intro">현재 선택한 주의 일정만 공유합니다. 반복 일정은 이 주에 표시되는 일정으로 저장되며, 이후 변경 사항은 공유본에 반영되지 않습니다.</p>
+      <div class="field"><label for="shareExpiry">링크 유효 기간</label><select id="shareExpiry"><option value="7">7일</option><option value="30" selected>30일</option><option value="90">90일</option><option value="0">만료일 없음</option></select></div>
+      <div class="modal-actions"><span></span><button type="button" class="btn primary" id="createShareBtn">공유 링크 만들기</button></div>
+      <div id="shareLinkResult" class="share-link-row hidden"><input id="shareLinkInput" type="text" readonly aria-label="공유 링크" /><button type="button" class="btn small" id="copyShareLinkBtn">복사</button></div>
+      <div class="share-list-heading"><strong>내가 만든 공유 링크</strong><span class="muted" id="shareListStatus">최근 50개</span></div>
+      <div class="share-list" id="shareList"><p class="muted" style="font-size:11px">공유 링크를 불러오는 중…</p></div>
+    </div>
+  </div>
+
   <script>
     (() => {
       'use strict';
@@ -349,11 +371,11 @@
         if (result.error) throw new Error(result.error.message || '세션을 확인하지 못했습니다.');
         return result.data || {};
       }
-      async function cloudRequest(method, body) {
+      async function cloudRequest(method, body, endpoint = '/api/planner') {
         const sessionData = await getAuthSession();
         const token = sessionData.session && sessionData.session.token;
         if (!token) throw new Error('다시 로그인해 주세요.');
-        const response = await fetch(API_BASE_URL + '/api/planner', {
+        const response = await fetch(API_BASE_URL + endpoint, {
           method,
           headers: {
             authorization: 'Bearer ' + token,
@@ -758,42 +780,128 @@
         const bytes = Uint8Array.from(binary, char=>char.charCodeAt(0));
         return JSON.parse(new TextDecoder().decode(bytes));
       }
-      async function shareCurrentWeek() {
-        const events = currentEvents().map(event => {
+      function shareEventsSnapshot() {
+        return currentEvents().map(event => {
           const { recurrence, seriesMasterId, occurrenceDate, isRecurring, isOverride, overrideOf, ...snapshot } = event;
           return { ...snapshot, id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()+Math.random()) };
         });
-        const payload = { version:1, weekStart:weekKey(), events };
-        const url = `${location.href.split('#')[0]}#share=${encodeShare(payload)}`;
-        if (location.protocol === 'file:') {
-          exportData(payload, 'studygrade-share.json');
-          showToast('파일로 내보냈어요. 링크 공유는 사이트 배포 후 사용할 수 있습니다.');
+      }
+      async function shareCurrentWeek() {
+        if (!currentUser) {
+          showToast('공유 링크를 만들려면 먼저 로그인해 주세요.');
+          openAccountModal();
           return;
         }
+        $('shareBackdrop').classList.add('open');
+        $('shareLinkResult').classList.add('hidden');
+        $('shareLinkInput').value = '';
+        await loadMyShares();
+      }
+      function renderShareList(shares) {
+        if (!shares.length) {
+          $('shareList').innerHTML = '<p class="muted" style="font-size:11px">아직 만든 공유 링크가 없습니다.</p>';
+          return;
+        }
+        $('shareList').innerHTML = shares.map(share => {
+          const state = share.active ? '사용 중' : (share.revokedAt ? '폐기됨' : '만료됨');
+          const expiry = share.expiresAt ? new Date(share.expiresAt).toLocaleString('ko-KR',{month:'numeric',day:'numeric',hour:'2-digit',minute:'2-digit'}) + ' 만료' : '만료일 없음';
+          return `<div class="share-item"><div><strong>${escapeHtml(share.weekStart)} 주간 · ${state}</strong><small>${expiry}</small></div><button type="button" data-revoke-share="${escapeHtml(share.id)}" ${share.active?'':'disabled'}>링크 폐기</button></div>`;
+        }).join('');
+      }
+      async function loadMyShares() {
+        if (!currentUser) return;
+        $('shareListStatus').textContent = '불러오는 중…';
         try {
-          await navigator.clipboard.writeText(url);
-          showToast('이번 주 시간표 공유 링크를 복사했습니다.');
-        } catch {
-          window.prompt('아래 링크를 복사해 공유하세요.',url);
+          const result = await cloudRequest('GET', null, '/api/shares');
+          renderShareList(result.shares || []);
+          $('shareListStatus').textContent = '최근 50개';
+        } catch (error) {
+          $('shareList').innerHTML = '<p class="muted" style="font-size:11px">공유 목록을 불러오지 못했습니다.</p>';
+          $('shareListStatus').textContent = '오류';
+          showToast(error.message || '공유 목록을 불러오지 못했습니다.');
         }
       }
-      function loadSharedMode() {
-        const match = location.hash.match(/^#share=(.+)$/);
-        if (!match) return false;
+      async function createShareLink() {
+        if (!currentUser) return;
+        const button = $('createShareBtn');
+        button.disabled = true;
+        button.textContent = '만드는 중…';
         try {
-          const payload = decodeShare(match[1]);
-          if (payload.version!==1 || !/^\d{4}-\d{2}-\d{2}$/.test(payload.weekStart) || !Array.isArray(payload.events)) throw new Error('invalid');
-          const monday = parseDate(payload.weekStart);
-          if (dateKey(getMonday(monday))!==payload.weekStart) throw new Error('invalid week');
-          const valid = payload.events.filter(item => item && typeof item.title==='string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) && /^\d{2}:\d{2}$/.test(item.start) && /^\d{2}:\d{2}$/.test(item.end) && minutes(item.start)>=START_HOUR*60 && minutes(item.end)<=END_HOUR*60 && minutes(item.end)>minutes(item.start) && dateKey(getMonday(parseDate(item.date)))===payload.weekStart).map(item=>({...item,id:String(item.id||''),title:item.title.slice(0,60),subject:Object.prototype.hasOwnProperty.call(COLORS,item.subject)?item.subject:'기타',color:COLOR_LIST.includes(item.color)?item.color:(COLORS[item.subject]||COLORS['기타']),note:String(item.note||'').slice(0,180)}));
-          sharedSnapshot = { weekStart:payload.weekStart, events:valid };
-          weekStart = monday; sharedMode = true;
+          const result = await cloudRequest('POST', {
+            version: 1,
+            weekStart: weekKey(),
+            events: shareEventsSnapshot(),
+            expiresInDays: Number($('shareExpiry').value),
+          }, '/api/shares');
+          const url = new URL(location.href);
+          url.hash = '';
+          url.searchParams.set('share', result.token);
+          $('shareLinkInput').value = url.toString();
+          $('shareLinkResult').classList.remove('hidden');
+          try {
+            await navigator.clipboard.writeText(url.toString());
+            showToast('공유 링크를 만들고 복사했습니다.');
+          } catch {
+            $('shareLinkInput').focus();
+            $('shareLinkInput').select();
+            showToast('공유 링크를 만들었습니다. 링크를 복사해 주세요.');
+          }
+          await loadMyShares();
+        } catch (error) {
+          showToast(error.message || '공유 링크를 만들지 못했습니다.');
+        } finally {
+          button.disabled = false;
+          button.textContent = '공유 링크 만들기';
+        }
+      }
+      async function revokeShare(shareId, button) {
+        if (!currentUser || !shareId) return;
+        button.disabled = true;
+        try {
+          await cloudRequest('DELETE', null, '/api/shares/' + encodeURIComponent(shareId));
+          showToast('공유 링크를 폐기했습니다.');
+          await loadMyShares();
+        } catch (error) {
+          button.disabled = false;
+          showToast(error.message || '공유 링크를 폐기하지 못했습니다.');
+        }
+      }
+      function validateSharedPayload(payload) {
+        if (!payload || payload.version !== 1 || !/^\d{4}-\d{2}-\d{2}$/.test(payload.weekStart) || !Array.isArray(payload.events)) throw new Error('invalid');
+        const monday = parseDate(payload.weekStart);
+        if (dateKey(getMonday(monday)) !== payload.weekStart) throw new Error('invalid week');
+        const valid = payload.events.filter(item => item && typeof item.title === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(item.date) && /^\d{2}:\d{2}$/.test(item.start) && /^\d{2}:\d{2}$/.test(item.end) && minutes(item.start)>=START_HOUR*60 && minutes(item.end)<=END_HOUR*60 && minutes(item.end)>minutes(item.start) && dateKey(getMonday(parseDate(item.date)))===payload.weekStart).map(item=>({...item,id:String(item.id||''),title:item.title.slice(0,60),subject:Object.prototype.hasOwnProperty.call(COLORS,item.subject)?item.subject:'기타',color:COLOR_LIST.includes(item.color)?item.color:(COLORS[item.subject]||COLORS['기타']),note:String(item.note||'').slice(0,180)}));
+        return { monday, events: valid };
+      }
+      async function loadSharedMode() {
+        const queryToken = new URLSearchParams(location.search).get('share');
+        const legacyMatch = location.hash.match(/^#share=(.+)$/);
+        if (!queryToken && !legacyMatch) return false;
+        try {
+          let payload;
+          if (queryToken) {
+            if (!/^[0-9a-f]{64}$/i.test(queryToken)) throw new Error('잘못된 공유 링크입니다.');
+            const response = await fetch(API_BASE_URL + '/api/shares/' + queryToken.toLowerCase(), { cache: 'no-store' });
+            const data = await response.json().catch(() => ({}));
+            if (!response.ok) throw new Error(response.status === 404 ? '공유 링크가 만료되었거나 폐기되었습니다.' : (data.error || '공유 시간표를 불러오지 못했습니다.'));
+            payload = { version: data.version, weekStart: data.weekStart, events: data.events };
+          } else {
+            payload = decodeShare(legacyMatch[1]);
+          }
+          const { monday, events } = validateSharedPayload(payload);
+          sharedSnapshot = { weekStart:payload.weekStart, events };
+          weekStart = monday;
+          sharedMode = true;
           $('readOnlyBanner').classList.remove('hidden');
           $('quickAdd').classList.add('hidden');
           $('exportBtn').classList.add('hidden');
+          $('shareBtn').classList.add('hidden');
           $('saveStatus').textContent = '공유된 시간표 · 읽기 전용';
           return true;
-        } catch { showToast('공유 링크가 올바르지 않거나 손상되었습니다.'); return false; }
+        } catch (error) {
+          showToast(error.message || '공유 링크가 올바르지 않거나 손상되었습니다.');
+          return false;
+        }
       }
       function exportData(data = null, filename = 'studygrade-planner.json') {
         const payload = data || { version:1, weeks:store };
@@ -809,8 +917,11 @@
         const cloned = sharedSnapshot.events.map(item=>({...item,id:crypto.randomUUID?crypto.randomUUID():String(Date.now()+Math.random())}));
         store[key] = [...existing,...cloned]; saveStore();
         sharedMode=false; sharedSnapshot=null;
-        history.replaceState(null,'',location.href.split('#')[0]);
-        $('readOnlyBanner').classList.add('hidden'); $('quickAdd').classList.remove('hidden'); $('exportBtn').classList.remove('hidden');
+        const cleanUrl = new URL(location.href);
+        cleanUrl.searchParams.delete('share');
+        cleanUrl.hash = '';
+        history.replaceState(null,'',cleanUrl.toString());
+        $('readOnlyBanner').classList.add('hidden'); $('quickAdd').classList.remove('hidden'); $('exportBtn').classList.remove('hidden'); $('shareBtn').classList.remove('hidden');
         render(); showToast(`${cloned.length}개 일정을 내 플래너에 복사했습니다.`);
         if (currentUser) syncAccountData(currentUser);
       }
@@ -919,6 +1030,19 @@
       $('todayBtn').addEventListener('click',()=>{weekStart=getMonday(new Date());render();});
       $('quickAdd').addEventListener('click',()=>openModal(dateKey(weekStart),'09:00'));
       $('shareBtn').addEventListener('click',shareCurrentWeek);
+      $('closeShare').addEventListener('click',()=> $('shareBackdrop').classList.remove('open'));
+      $('shareBackdrop').addEventListener('click',(event)=>{if(event.target===$('shareBackdrop'))$('shareBackdrop').classList.remove('open');});
+      $('createShareBtn').addEventListener('click',createShareLink);
+      $('copyShareLinkBtn').addEventListener('click',async()=>{
+        const value=$('shareLinkInput').value;
+        if (!value) return;
+        try { await navigator.clipboard.writeText(value); showToast('공유 링크를 복사했습니다.'); }
+        catch { $('shareLinkInput').focus(); $('shareLinkInput').select(); showToast('선택된 링크를 복사해 주세요.'); }
+      });
+      $('shareList').addEventListener('click',(event)=>{
+        const button=event.target.closest('[data-revoke-share]');
+        if(button) revokeShare(button.dataset.revokeShare,button);
+      });
       $('exportBtn').addEventListener('click',()=>exportData());
       $('closeModal').addEventListener('click',closeModal);
       $('cancelModal').addEventListener('click',closeModal);
@@ -951,12 +1075,14 @@
       $('eventRepeat').addEventListener('change',syncRecurrenceFields);
       window.addEventListener('focus',refreshAccountData);
       document.addEventListener('visibilitychange',refreshAccountData);
-      document.addEventListener('keydown',(event)=>{if(event.key==='Escape'){closeModal();closeAccountModal();}});
+      document.addEventListener('keydown',(event)=>{if(event.key==='Escape'){closeModal();closeAccountModal();$('shareBackdrop').classList.remove('open');}});
 
-      loadSharedMode();
-      render();
-      renderAccountButton();
-      initializeAuth();
+      (async () => {
+        await loadSharedMode();
+        render();
+        renderAccountButton();
+        initializeAuth();
+      })();
     })();
   </script>
 </body>
