@@ -264,6 +264,8 @@
     (() => {
       'use strict';
       const STORAGE_KEY = 'studyflow-planner-v1';
+      const API_BASE_URL = 'https://br-bold-shadow-azl6l4m4-plannerapi.compute.c-3.ap-southeast-1.aws.neon.tech';
+      const OWNER_ID_KEY = 'studygrade-planner-owner-v1';
       const START_HOUR = 6;
       const END_HOUR = 24;
       const HOUR_HEIGHT = 60;
@@ -283,9 +285,90 @@
           return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
         } catch { return {}; }
       }
+      let cloudReady = false;
+      let cloudWriteTimer = null;
+      let cloudOwnerId = null;
+      let cloudPendingSave = false;
+
+      function getCloudOwnerId() {
+        let id = localStorage.getItem(OWNER_ID_KEY);
+        if (!id || !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+          id = crypto.randomUUID();
+          localStorage.setItem(OWNER_ID_KEY, id);
+        }
+        return id;
+      }
+      async function cloudRequest(method, body) {
+        const response = await fetch(`${API_BASE_URL}/api/planner`, {
+          method,
+          headers: { 'x-planner-id': cloudOwnerId, ...(body ? { 'content-type': 'application/json' } : {}) },
+          body: body ? JSON.stringify(body) : undefined,
+          cache: 'no-store',
+        });
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(data.error || `HTTP ${response.status}`);
+        return data;
+      }
+      async function pushCloudStore() {
+        if (!cloudReady || sharedMode) return;
+        try {
+          await cloudRequest('PUT', { weeks: store });
+          $('saveStatus').textContent = 'Neon 서버에 동기화됨';
+        } catch (error) {
+          console.error('Neon sync failed:', error);
+          $('saveStatus').textContent = '서버 동기화 실패 · 브라우저에는 저장됨';
+        }
+      }
+      function scheduleCloudSave() {
+        if (sharedMode) return;
+        if (!cloudReady) {
+          if (cloudOwnerId) cloudPendingSave = true;
+          return;
+        }
+        clearTimeout(cloudWriteTimer);
+        cloudWriteTimer = setTimeout(pushCloudStore, 650);
+      }
+      async function initializeCloudSync() {
+        try {
+          cloudOwnerId = getCloudOwnerId();
+          $('saveStatus').textContent = 'Neon 서버 연결 확인 중…';
+          const remote = await cloudRequest('GET');
+          const hasLocalStore = localStorage.getItem(STORAGE_KEY) !== null;
+          if (!hasLocalStore) {
+            store = remote.exists && remote.weeks && typeof remote.weeks === 'object' ? remote.weeks : {};
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+            $('saveStatus').textContent = remote.exists ? 'Neon 서버에서 시간표를 불러왔습니다.' : 'Neon 서버에 연결됨';
+            render();
+            if (!remote.exists) await cloudRequest('PUT', { weeks: store });
+          } else {
+            // Existing browser data is the migration source of truth for this anonymous profile.
+            await cloudRequest('PUT', { weeks: store });
+            $('saveStatus').textContent = '기존 시간표를 Neon 서버에 동기화했습니다.';
+          }
+          cloudReady = true;
+          if (cloudPendingSave) {
+            cloudPendingSave = false;
+            await pushCloudStore();
+          }
+          setTimeout(() => {
+            if ($('saveStatus').textContent.includes('동기화했습니다.') || $('saveStatus').textContent === 'Neon 서버에 연결됨') {
+              $('saveStatus').textContent = 'Neon 서버에 동기화됨';
+            }
+          }, 2500);
+        } catch (error) {
+          console.error('Neon initial sync failed:', error);
+          cloudReady = false;
+          $('saveStatus').textContent = 'Neon 연결 실패 · 브라우저에 자동 저장 중';
+        }
+      }
       function saveStore() {
-        try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); $('saveStatus').textContent = '방금 저장됨'; }
-        catch { $('saveStatus').textContent = '저장 공간을 사용할 수 없습니다.'; }
+        try {
+          localStorage.setItem(STORAGE_KEY, JSON.stringify(store));
+          $('saveStatus').textContent = cloudReady ? '브라우저에 저장됨 · 서버 동기화 대기' : '브라우저에 저장됨';
+          scheduleCloudSave();
+        } catch {
+          $('saveStatus').textContent = '저장 공간을 사용할 수 없습니다.';
+        }
       }
       function dateKey(date) { return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`; }
       function parseDate(key) { const [y,m,d] = key.split('-').map(Number); return new Date(y,m-1,d,12); }
@@ -495,6 +578,7 @@
 
       loadSharedMode();
       render();
+      initializeCloudSync();
     })();
   </script>
 </body>
