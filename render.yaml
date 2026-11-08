@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: study-planner
+    runtime: static
+    buildCommand: ""
+    staticPublishPath: .
+    autoDeployTrigger: commit
+    domains:
+      - studygrade.kro.kr
